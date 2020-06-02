@@ -1,12 +1,5 @@
 #!/bin/bash
 
-key_prefix="bw_ssh_"
-ttl="1h"
-error=0
-red='\033[0;31m'
-yellow='\033[0;33m'
-nc='\033[0m'
-
 ## Lastpass cli backend
 ## This module is intended to be used with
 ## - ssh-key-vault -tool

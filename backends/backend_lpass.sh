@@ -23,68 +23,68 @@ function vault_check_dependencies(){
 }
 
 function vault_login(){
-  lpass status >/dev/null 2>&1
-  if [ $? != 0 ]; then
-    if [[ -f "${HOME}/.lpass/username" ]]; then
-      vault_sync
-    else
-      echo -n "Enter username for lastpass: "
-      read username
-      lpass login ${username}
+    lpass status >/dev/null 2>&1
+    if [ $? != 0 ]; then
+        if [[ -f "${HOME}/.lpass/username" ]]; then
+            vault_sync
+        else
+            echo -n "Enter username for lastpass: "
+            read username
+            lpass login ${username}
+        fi
     fi
-  fi
 }
 
 function vault_sync(){
-  lpass sync
+    lpass sync
 }
 
 function vault_add_secret() {
-  if [[ "${secret_type}" == "ssh-key" ]]; then
-    payload="private-key: ${private_key}\npublic-key: ${public_key}"
-    printf "${payload}"|lpass add --sync=auto --non-interactive --note-type=ssh-key ${key_name}
-    exitvalue=$?
-  fi
-  return $exitvalue
+    if [[ "${secret_type}" == "ssh-key" ]]; then
+        payload="private-key: ${private_key}\npublic-key: ${public_key}"
+        printf "${payload}"|lpass add --sync=auto --non-interactive --note-type=ssh-key ${key_name}
+        exitvalue=$?
+    fi
+    return $exitvalue
 }
 
 function vault_list_secrets(){
-  unset secret
-  secrets=$(lpass ls ${key_prefix})
+    unset secret
+    secrets=$(lpass ls ${key_prefix})
 }
 
 function vault_get_secret(){
-  unset secret
-  unset secrets
-  if [ "${secret_type}" == "public" ]; then
-    result=$(lpass show -G "${key_name}" --field=public-key 2>/dev/null)
-    exitvalue=$?
-    if [[ "${result}" = *"Multiple"* ]]; then
-      secrets=$result
-    else
-      secret=$result
+    unset secret
+    unset secrets
+    if [ "${secret_type}" == "public" ]; then
+        result=$(lpass show -G "${key_name}" --field=public-key 2>/dev/null)
+        exitvalue=$?
+        if [[ "${result}" = *"Multiple"* ]]; then
+            secrets=$result
+        else
+            secret=$result
+        fi
+    elif [ "${secret_type}" == "private" ]; then
+        result=$(lpass show -G "${key_name}" --field=private-key 2>/dev/null)
+        exitvalue=$?
+        if [[ "${result}" = *"Multiple"* ]]; then
+            secrets=$result
+        else
+            secret=$result
+        fi
     fi
-  elif [ "${secret_type}" == "private" ]; then
-    result=$(lpass show -G "${key_name}" --field=private-key 2>/dev/null)
-    exitvalue=$?
-    if [[ "${result}" = *"Multiple"* ]]; then
-      secrets=$result
-    else
-      secret=$result
-    fi
-  fi
-  return ${exitvalue}
+    return ${exitvalue}
 }
 
 function vault_search_secret() {
-  unset secret
-  unset secrets
-  result=$(lpass show -G "${key_name}" -j 2>/dev/null)
-  exitvalue=$?
-  if [[ "${result}" = *"Multiple"* ]]; then
-    secrets=${result}
-  else
-    secret=$(echo "${result}"|jq -r '.[] | "\(.fullname) [id: \(.id)]"')
-  fi
-  return ${exitvalue}
+    unset secret
+    unset secrets
+    result=$(lpass show -G "${key_name}" -j 2>/dev/null)
+    exitvalue=$?
+    if [[ "${result}" = *"Multiple"* ]]; then
+        secrets=${result}
+    else
+        secret=$(echo "${result}"|jq -r '.[] | "\(.fullname) [id: \(.id)]"')
+    fi
+    return ${exitvalue}
 }
