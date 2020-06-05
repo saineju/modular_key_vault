@@ -1,0 +1,35 @@
+#!/bin/bash
+
+ARGUMENTS=()
+while [[ $# -gt 0 ]]
+  do
+    opt="$1"
+    case $opt in
+      -i)
+        key="$2"
+        shift
+        shift
+      ;;
+      -ttl)
+       ttl="$2"
+       shift
+       shift
+      ;;
+      *)
+        ARGUMENTS+=("$1")
+        shift
+      ;;
+  esac
+done
+
+set -- "${ARGUMENTS[@]}"
+additional_args=$*
+if [ "${key}x" == "x" ]; then
+  key="${@: -1}"
+fi
+if [ "${ttl}x" != "x" ]; then
+  key_vault.sh -t ${ttl} -k ${key} get_key
+else
+  key_vault.sh -k ${key} get_key
+fi
+exec ssh $additional_args
