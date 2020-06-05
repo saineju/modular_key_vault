@@ -97,7 +97,7 @@ function generate_key() {
 
     if [ -z "${key_type}" ]; then
         declare -a key_types
-        key_types=("rsa","ed25519")
+        key_types=("rsa" "ed25519")
         echo "Select key type:"
         select_option ${key_types[@]}
         choice=$?
