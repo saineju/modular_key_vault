@@ -25,7 +25,7 @@ do so.
 ```
 key_vault.sh generate --key-name <new_key_name> --key-enc <rsa|ed25519>
 e.g.
-key_vault.sh generat --key-name my_test --key-enced25519
+key_vault.sh generate --key-name my_test --key-enc ed25519
 ```
 
 The command will create a new key to your chosen backend prefixed with chosen prefix. So if you have opted to keep the default prefix, you should have
