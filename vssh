@@ -32,4 +32,13 @@ if [ "${ttl}x" != "x" ]; then
 else
   key_vault.sh -k ${key} get_key
 fi
+
+if [[ "${@: -1}" == i-*]]; then
+    [ -z ${AWS_PROFILE} ] && read -p "Enter profile name: " AWS_PROFILE
+    [ -z ${AWS_DEFAULT_REGION} ] && read -p "Enter region: " AWS_DEFAULT_REGION
+
+    export AWS_DEFAULT_REGION
+    export AWS_PROFILE
+fi
+
 exec ssh $additional_args

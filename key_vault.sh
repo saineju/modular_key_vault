@@ -18,6 +18,7 @@ function help() {
     echo -e "\tgenerate\tGenerate new key to vault"
     echo -e "\tget_key\t\tGet private key to ssh-agent"
     echo -e "\tget_public_key\tget public key for the specified key"
+    echo -e "\tconfigure\tedit the configuration file"
     echo -e "\t-k|--key-name\tName for key, required for generating key or getting the key"
     echo -e "\t-i|--id\t\tUse key ID to fetch the key"
     echo -e "\t-n|--no-prefix\tDo not add key prefix"
