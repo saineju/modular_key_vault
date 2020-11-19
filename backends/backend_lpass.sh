@@ -41,7 +41,7 @@ function vault_sync(){
 
 function vault_add_secret() {
     if [[ "${secret_type}" == "ssh-key" ]]; then
-        payload="private-key: ${private_key}\npublic-key: ${public_key}"
+        payload="Private Key: ${private_key}\nPublic Key: ${public_key}"
         printf "${payload}"|lpass add --sync=auto --non-interactive --note-type=ssh-key ${key_name}
         exitvalue=$?
     fi
@@ -57,16 +57,24 @@ function vault_get_secret(){
     unset secret
     unset secrets
     if [ "${secret_type}" == "public" ]; then
-        result=$(lpass show -G "${key_name}" --field=public-key 2>/dev/null)
+        result=$(lpass show -G "${key_name}" --field="Public Key" 2>/dev/null)
         exitvalue=$?
+        if [[ ${exitvalue} != 0 ]]; then
+            result=$(lpass show -G "${key_name}" --field=public-key 2>/dev/null)
+            exitvalue=$?
+        fi
         if [[ "${result}" = *"Multiple"* ]]; then
             secrets=$result
         else
             secret=$result
         fi
     elif [ "${secret_type}" == "private" ]; then
-        result=$(lpass show -G "${key_name}" --field=private-key 2>/dev/null)
+        result=$(lpass show -G "${key_name}" --field="Private Key" 2>/dev/null)
         exitvalue=$?
+        if [[ ${exitvalue} != 0 ]]; then
+            result=$(lpass show -G "${key_name}" --field=private-key 2>/dev/null)
+            exitvalue=$?
+        fi
         if [[ "${result}" = *"Multiple"* ]]; then
             secrets=$result
         else

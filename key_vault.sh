@@ -197,6 +197,8 @@ if [ $# -eq 0 ]; then
     exit 1
 fi
 
+source ${configuration}
+
 while [[ $# -gt 0 ]]
     do
         opt="$1"
@@ -262,7 +264,6 @@ while [[ $# -gt 0 ]]
     esac
 done
 
-source ${configuration}
 source "${backend_path}/${backend}"
 
 vault_check_dependencies
