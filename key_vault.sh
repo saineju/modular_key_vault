@@ -24,6 +24,7 @@ function help() {
     echo -e "\t-n|--no-prefix\tDo not add key prefix"
     echo -e "\t-t|--ttl\tHow long private key should exist in agent, uses ssh-agent ttl syntax"
     echo -e "\t-e|--key-enc\tKey type, accepts rsa or ed25519"
+    echo -e "\t-b|--backend\tBackend to use instead of the default one"
     echo -e "\tAll required parameters will be asked unless specified with switch"
 }
 
@@ -66,6 +67,7 @@ function configure() {
     choice=$?
     backend=${backends[$choice]}
 
+    ## General configuration
     ask "Do you want to change default prefix (default: ${key_prefix}) [y/N]" "n"
     if [[ "$a" == "y" ]]; then
         echo -n "Enter prefix: "
@@ -85,11 +87,36 @@ function configure() {
             fi
         done
     fi
+
     echo "Settings:"
     echo "backend: ${backend}"
     echo "prefix:  ${key_prefix}"
     echo "ttl:     ${ttl}"
     echo -e "backend=${backend}\nttl=${ttl}\nkey_prefix=${key_prefix}" > ${configuration}
+
+    ## Backend related configuration
+    if [ "${backend}" == "vault" ]; then
+        curl_parameteters="-s"
+        keyvault="kv"
+        ask "Do you want to change vault URL (default: ${VAULT_URL:-https://localhost:8200} [y/N]" "n"
+        if [[ "${a}" == "y" ]]; then
+            echo -n "Enter vault url: "
+            read VAULT_URL
+        fi
+
+        ask "Do you want to add curl parameters (default: ${curl_parameters} [y/N]" "n"
+        if [[ "${a}" == "y" ]]; then
+            echo -n "Enter additional curl parameters: "
+            read additional_curl_parameters
+            curl_parameters="${curl_parameters} ${additional_curl_parameters}"
+        fi
+        ask "Do you want to change key vault path (default: ${keyvault}) [y/N]" "n"
+        if [[ "${a}" == "y" ]]; then
+            echo -n "Enter key vault path: "
+            read keyvault
+        fi
+        echo -e "\ncurl_params=${curl_parameters}\nvault_address=${VAULT_URL}\nkeyvault=${keyvault}" >> ${configuration}
+    fi
 }
 
 function generate_key() {
@@ -232,6 +259,11 @@ while [[ $# -gt 0 ]]
                 help
                 exit 0
             ;;
+            -b|--backend)
+                backend="$2"
+                shift
+                shift
+            ;;
             get_public_key)
                 secret_type=public
                 shift
@@ -263,6 +295,11 @@ while [[ $# -gt 0 ]]
             ;;
     esac
 done
+
+## Allow backend to be inputted with just the backend name without prefix and suffix
+backend=${backend#"backend_"}
+backend=${backend%".sh"}
+backend="backend_${backend}.sh"
 
 source "${backend_path}/${backend}"
 
