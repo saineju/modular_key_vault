@@ -11,6 +11,10 @@ red='\033[0;31m'
 yellow='\033[0;33m'
 nc='\033[0m'
 
+if [[ -f "${configuration}" ]]; then
+    source ${configuration}
+fi
+
 function help() {
     echo "Usage: $0 <list|generate|get_key|get_public_key> [-k key_name] [-t ttl] [-e encryption_type]"
     echo -e "\tlist\t\tList keys in vault"
@@ -25,6 +29,7 @@ function help() {
     echo -e "\t-t|--ttl\tHow long private key should exist in agent, uses ssh-agent ttl syntax"
     echo -e "\t-e|--key-enc\tKey type, accepts rsa or ed25519"
     echo -e "\t-b|--backend\tBackend to use instead of the default one"
+    echo -e "\t-m|--mode\twhat key mode should be used, selections: ssh-key,aws,password"
     echo -e "\tAll required parameters will be asked unless specified with switch"
 }
 
@@ -56,16 +61,21 @@ function get_key_name(){
 }
 
 function configure() {
-    key_prefix="key_vault/"
-    ttl="1h"
-    echo "What backend would you like to use?"
-    declare -a backends
-    for b in $(ls ${backend_path}); do
+    key_prefix="${key_prefix:-key_vault/}"
+    ttl="${ttl:-1h}"
+    if [ -n ${backend} ]; then
+        ask "Would you like to change the default backend (default: ${backend}) [y/N]" "n"
+    fi
+    if [[ -z "${backend}" || "${a}" == "y" ]]; then
+        echo "What backend would you like to use?"
+        declare -a backends
+        for b in $(ls ${backend_path}); do
         backends+=("$b")
-    done
-    select_option ${backends[@]}
-    choice=$?
-    backend=${backends[$choice]}
+        done
+        select_option ${backends[@]}
+        choice=$?
+        backend=${backends[$choice]}
+    fi
 
     ## General configuration
     ask "Do you want to change default prefix (default: ${key_prefix}) [y/N]" "n"
@@ -74,7 +84,7 @@ function configure() {
         read key_prefix
     fi
 
-    ask "Do you want to change default key time to live (default ${ttl}) [y/N]" "n"
+    ask "Do you want to change default key time to live (default: ${ttl}) [y/N]" "n"
     if [[ "$a" == "y" ]]; then
         ttl_ok=1
         while [ ${ttl_ok} != 0 ]; do
@@ -88,35 +98,36 @@ function configure() {
         done
     fi
 
-    echo "Settings:"
+    echo "Default settings:"
     echo "backend: ${backend}"
     echo "prefix:  ${key_prefix}"
     echo "ttl:     ${ttl}"
-    echo -e "backend=${backend}\nttl=${ttl}\nkey_prefix=${key_prefix}" > ${configuration}
 
     ## Backend related configuration
-    if [ "${backend}" == "vault" ]; then
-        curl_parameteters="-s"
-        keyvault="kv"
-        ask "Do you want to change vault URL (default: ${VAULT_URL:-https://localhost:8200} [y/N]" "n"
+    if [ "${backend}" == "backend_vault.sh" ]; then
+        curl_params="${curl_params:--s}"
+        keyvault="${keyvault:-kv}"
+        vault_address="${vault_address:-https://localhost:8200}"
+        ask "Do you want to change vault URL (default: ${vault_address} [y/N]" "n"
         if [[ "${a}" == "y" ]]; then
             echo -n "Enter vault url: "
             read VAULT_URL
         fi
 
-        ask "Do you want to add curl parameters (default: ${curl_parameters} [y/N]" "n"
+        ask "Do you want to add curl parameters (default: ${curl_params} [y/N]" "n"
         if [[ "${a}" == "y" ]]; then
             echo -n "Enter additional curl parameters: "
             read additional_curl_parameters
-            curl_parameters="${curl_parameters} ${additional_curl_parameters}"
+            curl_params="${curl_params} ${additional_curl_parameters}"
         fi
         ask "Do you want to change key vault path (default: ${keyvault}) [y/N]" "n"
         if [[ "${a}" == "y" ]]; then
             echo -n "Enter key vault path: "
             read keyvault
         fi
-        echo -e "\ncurl_params=${curl_parameters}\nvault_address=${VAULT_URL}\nkeyvault=${keyvault}" >> ${configuration}
     fi
+    echo -e "backend=${backend}\nttl=${ttl}\nkey_prefix=${key_prefix}\ncurl_params=\"${curl_params}\"\nvault_address=${vault_address}\nkeyvault=${keyvault}" > ${configuration}
+
 }
 
 function generate_key() {
@@ -223,8 +234,6 @@ if [ $# -eq 0 ]; then
     help
     exit 1
 fi
-
-source ${configuration}
 
 while [[ $# -gt 0 ]]
     do
