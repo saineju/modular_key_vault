@@ -1,3 +1,7 @@
+#!/bin/bash
+
+set -e
+
 function install_bitwarden() {
     ver=$1
     if [[ "${ver}" == "" || "${ver}" == "latest" ]]; then
@@ -11,8 +15,14 @@ function install_bitwarden() {
     wget -O /tmp/${SHASUMS} ${DOWNLOAD_URL}/${SHASUMS}
     cd /tmp
     dos2unix ${SHASUMS}
-    echo "$(cat ${SHASUMS}) ${FILE}"|sha256sum -c
-    if [ $? != 0 ]; then
+    if [ -f /etc/alpine-release ]; then
+        echo "$(cat ${SHASUMS}|tr '[:upper:]' '[:lower:]')  ${FILE}"|sha256sum -c
+        ret=$?
+    else
+        echo "$(cat ${SHASUMS}) ${FILE}"|sha256sum -c
+        ret=$?
+    fi
+    if [ ${ret} != 0 ]; then
         echo "Checksums did not match, downloaded file is corrupted, exiting"
         exit 1
     fi

@@ -1,0 +1,7 @@
+backend=backend_vault.sh
+ttl=1h
+key_prefix=key_vault/
+mode=ssh-key
+curl_params="-s --cacert /vault/certs/ca.pem"
+vault_address=https://localhost:8200
+keyvault=default_kv

@@ -1,0 +1,24 @@
+version: '3'
+
+services:
+  key-vault:
+    build:
+      context: ./
+      dockerfile: vault_demo/Dockerfile
+    container_name: key-vault
+    ports:
+      - "127.0.0.1:8300:8200"
+    environment:
+      USER: ${USERNAME:-admin}
+      PASS: ${PASSWORD:-admin}
+    volumes:
+      - vault_file:/vault/file
+      - vault_logs:/vault/logs
+      - vault_certs:/vault/certs
+    cap_add:
+      - IPC_LOCK
+
+volumes:
+  vault_file:
+  vault_logs:
+  vault_certs:    

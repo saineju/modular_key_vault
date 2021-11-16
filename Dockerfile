@@ -1,8 +1,7 @@
-FROM centos:8
+FROM alpine:latest
 
-RUN dnf update -y && \
-dnf install -y epel-release nano jq openssh-clients dos2unix wget unzip && \
-dnf install -y lastpass-cli
+RUN apk update && apk upgrade && \
+  apk add bash nano jq openssh dos2unix wget unzip curl
 
 RUN mkdir /data
 RUN echo 'source /tmp/ssh-agent' >> /root/.bashrc
@@ -16,6 +15,5 @@ RUN chmod +x /data/key_vault.sh && \
 chmod +x /data/support_scripts/*
 
 WORKDIR /data
-
 
 ENTRYPOINT /data/support_scripts/entrypoint.sh

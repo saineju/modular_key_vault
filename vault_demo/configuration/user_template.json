@@ -1,0 +1,5 @@
+{
+  "password": "<password>",
+  "policies": "admin,default",
+  "bound_cidrs": ["127.0.0.1/32","<network>"]
+}
