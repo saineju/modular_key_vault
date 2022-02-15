@@ -64,12 +64,21 @@ function vault_login(){
     vault_unseal
     vault_test_token
     token_invalid=$?
+    token_file_tested=0
+    token_json_tested=0
     while [ ${token_invalid} == 0 ]; do
-        read -p "Enter username for vault: " username
-        read -s -p "Enter password for vault: " password
-        payload="{\"password\":\"${password}\",\"token_ttl\":\"${token_ttl}\"}"
-        #echo
-        export VAULT_TOKEN=$(curl ${curl_params} -X POST -d ${payload} "${vault_address}/v1/auth/userpass/login/${username}"|jq -r .auth.client_token)
+        if [[ -f "${HOME}/.vault-token" && ${token_file_tested} != 1 ]]; then
+            export VAULT_TOKEN=$(cat ${HOME}/.vault-token)
+            token_file_tested=1
+        elif [[ -f "${HOME}/.vault-token.json" && ${token_json_tested} != 1 ]]; then
+            export VAULT_TOKEN=$(cat ${HOME}/.vault-token.json|jq -r ".\"${vault_address}\"")
+            token_json_tested=1
+        else
+            read -p "Enter username for vault: " username
+            read -s -p "Enter password for vault: " password
+            payload="{\"password\":\"${password}\",\"token_ttl\":\"${token_ttl}\"}"
+            export VAULT_TOKEN=$(curl ${curl_params} -X POST -d ${payload} "${vault_address}/v1/auth/userpass/login/${username}"|jq -r .auth.client_token)
+        fi
         vault_test_token
         token_invalid=$?
     done
@@ -125,7 +134,12 @@ function vault_get_secret(){
         fi
         export AWS_ACCESS_KEY_ID=$(echo ${result}|jq -r '.data.data.aws_access_key_id')
         export AWS_SECRET_ACCESS_KEY=$(echo ${result}|jq -r '.data.data.aws_secret_access_key')
-        secret=$(aws sts get-session-token --duration-seconds ${ttl}|jq '.Credentials += {"Version":1}'|jq .Credentials)
+        if [ "${otp_token}x" != "x" ]; then
+            mfadevice=$(aws iam list-mfa-devices|jq -r '.MFADevices[0].SerialNumber')
+            secret=$(aws sts get-session-token --duration-seconds ${ttl} --serial-number ${mfadevice} --token-code ${otp_token}|jq '.Credentials += {"Version":1}'|jq .Credentials)
+        else
+            secret=$(aws sts get-session-token --duration-seconds ${ttl}|jq '.Credentials += {"Version":1}'|jq .Credentials)
+        fi
         if [[ $? == 0 ]]; then
             vault_cache_aws_session
         else

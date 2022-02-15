@@ -37,6 +37,8 @@ function help() {
     echo -e "\t-f|--file\tFile to import"
     echo -e "\t-u|--url\tUse different url for key vault if applicable (default: ${vault_address})"
     echo -e "\t-kv|--key-vault\tHashicorp key vault path (default: ${keyvault})"
+    echo -e "\t-o|--otp\t\tOTP token for AWS if needed"
+    echo -e "\t-q|--quiet\t\tDo not output any values, useful for example generating MFA enabled AWS token without echoing the token"
     echo -e "\tAll required parameters will be asked unless specified with switch"
 }
 
@@ -395,6 +397,15 @@ while [[ $# -gt 0 ]]
                 shift
                 shift
             ;;
+            -o|--otp)
+                otp_token="$2"
+                shift
+                shift
+            ;;
+            -q|--quiet)
+                quiet="true"
+                shift
+            ;;
             get_public_key)
                 secret_type=public
                 shift
@@ -428,8 +439,7 @@ while [[ $# -gt 0 ]]
                 shift
             ;;
             unseal)
-                vault_unseal
-                exit
+                unseal=true
                 shift
             ;;
             *)
@@ -452,6 +462,12 @@ if [ "${error}" == 1 ]; then
     exit 1
 fi
 
+if [ "${unseal}" == "true" ]; then
+    echo "Unsealing vault"
+    vault_unseal
+    exit
+fi
+
 vault_login
 vault_sync
 
@@ -467,13 +483,19 @@ elif [ "${secret_type}" == "private" ]; then
     if [ "${mode}" == "ssh-key" ]; then
         echo "${secret}"|ssh-add -t ${ttl} -
     elif [ "${mode}" == "aws" ]; then
-        echo "${secret}"
+        if [ "${quiet}" != "true" ]; then
+            echo "${secret}"
+        fi
     elif [ "${mode}" == "password" ]; then
-        echo "${secret}"
+        if [ "${quiet}" != "true" ]; then
+            echo "${secret}"
+        fi
     fi
 elif [ "${secret_type}" == "public" ]; then
     get_item
-    echo ${secret}
+    if [ "${quiet}" != "true" ]; then
+        echo ${secret}
+    fi
 elif [ "${search}" == "true" ]; then
     search
 elif [ "${import}" == "true" ]; then
