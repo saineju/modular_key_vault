@@ -18,27 +18,31 @@ fi
 
 function help() {
     echo "Usage: $0 <list|generate|get_key|get_public_key> [-k key_name] [-t ttl] [-e encryption_type]"
-    echo -e "\tlist\t\tList keys in vault"
-    echo -e "\tsearch\t\tSearch for key name, useful if there are more than one matches"
-    echo -e "\tgenerate\tGenerate new key to vault"
-    echo -e "\tget_key\t\tGet private key to ssh-agent"
-    echo -e "\tget_public_key\tget public key for the specified key"
-    echo -e "\tget_vault_token\tOutputs vault token, can be used for getting the token to env"
-    echo -e "\tconfigure\tedit the configuration file"
-    echo -e "\timport\t\timport existing data from either file or by being asked" 
-    echo -e "\tunseal\t\tUnseal hashicorp vault"
-    echo -e "\t-k|--key-name\tName for key, required for generating key or getting the key"
-    echo -e "\t-i|--id\t\tUse key ID to fetch the key"
-    echo -e "\t-n|--no-prefix\tDo not add key prefix"
-    echo -e "\t-t|--ttl\tHow long private key should exist in agent, uses ssh-agent ttl syntax"
-    echo -e "\t-e|--key-enc\tKey type, accepts rsa or ed25519"
-    echo -e "\t-b|--backend\tBackend to use instead of the default one"
-    echo -e "\t-m|--mode\twhat key mode should be used, selections: ssh-key,aws,password"
-    echo -e "\t-f|--file\tFile to import"
-    echo -e "\t-u|--url\tUse different url for key vault if applicable (default: ${vault_address})"
-    echo -e "\t-kv|--key-vault\tHashicorp key vault path (default: ${keyvault})"
+    echo -e "\tlist\t\t\tList keys in vault"
+    echo -e "\tsearch\t\t\tSearch for key name, useful if there are more than one matches"
+    echo -e "\tgenerate\t\tGenerate new key to vault"
+    echo -e "\tget_key\t\t\tGet private key to ssh-agent"
+    echo -e "\tget_public_key\t\tget public key for the specified key"
+    echo -e "\tget_vault_token\t\tOutputs vault token, can be used for getting the token to env"
+    echo -e "\tconfigure\t\tedit the configuration file"
+    echo -e "\timport\t\t\timport existing data from either file or by being asked"
+    echo -e "\tunseal\t\t\tUnseal hashicorp vault"
+    echo -e "\t-k|--key-name\t\tName for key, required for generating key or getting the key"
+    echo -e "\t-i|--id\t\t\tUse key ID to fetch the key"
+    echo -e "\t-n|--no-prefix\t\tDo not add key prefix"
+    echo -e "\t-t|--ttl\t\tHow long private key should exist in agent, uses ssh-agent ttl syntax"
+    echo -e "\t-e|--key-enc\t\tKey type, accepts rsa or ed25519"
+    echo -e "\t-b|--backend\t\tBackend to use instead of the default one"
+    echo -e "\t-m|--mode\t\twhat key mode should be used, selections: ssh-key,aws,password"
+    echo -e "\t-f|--file\t\tFile to import"
+    echo -e "\t-u|--url\t\tUse different url for key vault if applicable (default: ${vault_address})"
+    echo -e "\t-c|--ca\t\t\tCA certificate path for vault if needed"
+    echo -e "\t-kv|--key-vault\t\tHashicorp key vault path (default: ${keyvault})"
+    echo -e "\t-sn|--secret-name\tsecret name in hashicorp vault (default: ${keyvault})"
+    echo -e "\t-lm|--login-method\tVault login method (default: ${login_method})"
+    echo -e "\t--user)\t\t\tOverride default user temporarily"
     echo -e "\t-o|--otp\t\tOTP token for AWS if needed"
-    echo -e "\t-q|--quiet\t\tDo not output any values, useful for example generating MFA enabled AWS token without echoing the token"
+    echo -e "\t-q|--quie)\t\tDo not output any values, useful for example generating MFA enabled AWS token without echoing the token"
     echo -e "\tAll required parameters will be asked unless specified with switch"
 }
 
@@ -179,30 +183,46 @@ function configure() {
     echo "prefix:  ${key_prefix}"
     echo "ttl:     ${ttl}"
     echo "mode:    ${mode}"
+    echo -e "backend=${backend}\nttl=${ttl}\nkey_prefix=${key_prefix}\nmode=${mode}" > ${configuration}
+
     ## Backend related configuration
     if [ "${backend}" == "backend_vault.sh" ]; then
-        curl_params="${curl_params:--s}"
         keyvault="${keyvault:-kv}"
         vault_address="${vault_address:-https://localhost:8200}"
+        login_method="${login_method:-userpass}"
         ask "Do you want to change vault URL (default: ${vault_address} [y/N]" "n"
         if [[ "${a}" == "y" ]]; then
             echo -n "Enter vault url: "
-            read VAULT_URL
+            read VAULT_ADDR
         fi
 
-        ask "Do you want to add curl parameters (default: ${curl_params} [y/N]" "n"
+        ask "Do you want to change default login method (default: ${login_method} [y/N]" "n"
         if [[ "${a}" == "y" ]]; then
-            echo -n "Enter additional curl parameters: "
-            read additional_curl_parameters
-            curl_params="${curl_params} ${additional_curl_parameters}"
+            echo -n "Enter login method: "
+            read login_method
         fi
         ask "Do you want to change key vault path (default: ${keyvault}) [y/N]" "n"
         if [[ "${a}" == "y" ]]; then
             echo -n "Enter key vault path: "
             read keyvault
         fi
+        echo -e "login_method=\"${login_method}\"\nvault_address=${vault_address}\nkeyvault=${keyvault}" >> ${configuration}
+
+        ask "Do you want to add path for custom CA? [y/N]" "n"
+        if [[ "${a}" == "y" ]]; then
+            echo -n "Enter path for custom ca: "
+            read ca_path
+            echo ca_path="${ca_path}" >> ${configuration}
+        fi
+
+        ask "Do you want to add default username for the vault? [y/N]" "n"
+        if [[ "${a}" == "y" ]]; then
+            echo -n "Enter default username: "
+            read username
+            echo username="${username}" >> ${configuration}
+        fi
     fi
-    echo -e "backend=${backend}\nttl=${ttl}\nkey_prefix=${key_prefix}\nmode=${mode}\ncurl_params=\"${curl_params}\"\nvault_address=${vault_address}\nkeyvault=${keyvault}" > ${configuration}
+    exit 0
 }
 
 function generate_key() {
@@ -397,6 +417,21 @@ while [[ $# -gt 0 ]]
                 shift
                 shift
             ;;
+            -sn|--secret-name)
+                secret_name="$2"
+                shift
+                shift
+            ;;
+            -lm|--login-method)
+                login_method="$2"
+                shift
+                shift
+            ;;
+            --user)
+                username="$2"
+                shift
+                shift
+            ;;
             -o|--otp)
                 otp_token="$2"
                 shift
@@ -404,6 +439,11 @@ while [[ $# -gt 0 ]]
             ;;
             -q|--quiet)
                 quiet="true"
+                shift
+            ;;
+            -c|--ca)
+                ca_path="$2"
+                shift
                 shift
             ;;
             get_public_key)

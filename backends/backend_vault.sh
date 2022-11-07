@@ -23,40 +23,41 @@
 ## - vault_cache_aws_session
 ## - vault_get_aws_session_from_cache
 
+## export defaults
+export VAULT_FORMAT="json"
+export VAULT_ADDR=${vault_address}
+if [ "${ca_path}x" != "x" ]; then
+    export VAULT_CAPATH=${ca_path}
+fi
+
 ## No need to sync, but function needs to exists for compatibility reasons
 function vault_sync() {
     return
 }
 
 function vault_check_dependencies(){
-  command -v curl >/dev/null 2>&1 || { echo -e >&2 "${red}ERROR: ${yellow}curl${nc} is required, but not installed";error=1; }
   command -v jq >/dev/null 2>&1 || { echo -e >&2 "${red}ERROR: ${yellow}jq${nc} is required, but not installed";error=1; }
+  command -v vault >/dev/null 2>&1 || { echo -e >&2 "${red}ERROR: ${yellow}vault${nc} is required, but not installed";error=1; }
 }
 
 function vault_check_if_sealed(){
     ## If vault is sealed return true otherwise return false
-    sealed=$(curl ${curl_params} ${vault_address}/v1/sys/seal-status|jq .sealed)
+    sealed=$(vault status|jq .sealed)
 }
 
 function vault_unseal(){
     vault_check_if_sealed
     while [ "${sealed}" == "true" ]; do
         ## Unseal vault
-        read -s -p "Enter unseal token: " unseal_token
-        echo
-        payload="{\"key\":\"${unseal_token}\"}"
-        curl ${curl_params} -X PUT -d ${payload} ${vault_address}/v1/sys/unseal -o /dev/null
+        vault operator unseal
         sealed=vault_check_if_sealed
     done
 }
 
 function vault_test_token(){
     ## if token is set and is valid, return 1 otherwise return 0
-    if [ -n "${VAULT_TOKEN}" ]; then
-        return_code=$(curl ${curl_params} -I -X LIST -H "X-Vault-Token: ${VAULT_TOKEN}" ${vault_address}/v1/auth/token/accessors -o /dev/null -w '%{http_code}\n')
-        [[ ${return_code} == 200 ]] && return 1
-    fi
-    return 0
+    vault token lookup > /dev/null 2>&1
+    return $?
 }
 
 ## Currently only supports username and password login
@@ -64,60 +65,62 @@ function vault_login(){
     vault_unseal
     vault_test_token
     token_invalid=$?
-    token_file_tested=0
-    token_json_tested=0
-    while [ ${token_invalid} == 0 ]; do
-        if [[ -f "${HOME}/.vault-token" && ${token_file_tested} != 1 ]]; then
-            export VAULT_TOKEN=$(cat ${HOME}/.vault-token)
-            token_file_tested=1
-        elif [[ -f "${HOME}/.vault-token.json" && ${token_json_tested} != 1 ]]; then
-            export VAULT_TOKEN=$(cat ${HOME}/.vault-token.json|jq -r ".\"${vault_address}\"")
-            token_json_tested=1
-        else
+    while [ ${token_invalid} != 0 ]; do
+        if [ "${username}x" == "x" ]; then
             read -p "Enter username for vault: " username
-            read -s -p "Enter password for vault: " password
-            payload="{\"password\":\"${password}\",\"token_ttl\":\"${token_ttl}\"}"
-            export VAULT_TOKEN=$(curl ${curl_params} -X POST -d ${payload} "${vault_address}/v1/auth/userpass/login/${username}"|jq -r .auth.client_token)
         fi
+        unset VAULT_FORMAT
+        vault login -no-print -method ${login_method} username=${username}
         vault_test_token
         token_invalid=$?
     done
+    export VAULT_FORMAT="json"
 }
 
 function vault_list_secrets(){
-    unset secret
-    secrets=$(curl ${curl_params} -X LIST -H "X-Vault-Token: ${VAULT_TOKEN}" https://localhost:8200/v1/${keyvault}/metadata/${key_prefix}|jq -r '.data.keys[]')
+    unset secrets
+    secrets=$(vault kv list ${keyvault}/${key_prefix})
+}
+
+function check_if_key_exists(){
+    vault kv get ${keyvault}/${key_name} > /dev/null 2>&1
+    return $?
 }
 
 function vault_add_secret() {
-    if [[ "${mode}" == "ssh-key" ]]; then
-        payload="{\"data\":{\"private_key\":\"${private_key}\",\"public_key\":\"${public_key}\"}}"
-    elif [[ "${mode}" == "aws" ]]; then
-        payload="{\"data\":{\"aws_access_key_id\":\"${aws_access_key_id}\",\"aws_secret_access_key\":\"${aws_secret_access_key}\"}}"
-    elif [[ "${mode}" == "password" ]]; then
-        payload="{\"data\":{\"password\":\"${secret}\"}}"
+    check_if_key_exists
+    if [ $? == 0 ]; then
+        vault_method="patch"
+    else
+        vault_method="put"
     fi
-    return_code=$(curl ${curl_params} -X POST -H "X-Vault-Token: ${VAULT_TOKEN}" -d "${payload}|jq ." ${vault_address}/v1/${keyvault}/data/${key_name} -o /dev/null -w '%{http_code}\n')
-    [[ ${return_code} == 200 || ${return_code} == 204 ]] || return 1
+    if [[ "${mode}" == "ssh-key" ]]; then
+        vault kv ${vault_method} ${keyvault}/${key_name} private_key="$(echo -e ${private_key})" public_key="${public_key}"
+    elif [[ "${mode}" == "aws" ]]; then
+        vault kv ${vault_method} ${keyvault}/${key_name} aws_access_key_id="${aws_access_key_id}" aws_secret_access_key="${aws_secret_access_key}"
+    elif [[ "${mode}" == "password" ]]; then
+        vault kv ${vault_method} ${keyvault}/${key_name} password="${secret}"
+    fi
 }
 
-
-
 function vault_cache_aws_session(){
-    payload="{\"cached\":${secret}}"
-    return_code=$(curl ${curl_params} -X POST -H "X-Vault-Token: ${VAULT_TOKEN}" -d"${payload}" ${vault_address}/v1/cubbyhole/${key_name} -o /dev/null -w '%{http_code}\n')
-    [[ ${return_code} == 200 || ${return_code} == 204 ]] || return 1
+    vault kv put cubbyhole/${key_name} cached="${secret}"
+    return $?
 }
 
 function vault_get_aws_session_from_cache(){
-    secret=$(curl ${curl_params} -H "X-Vault-Token: ${VAULT_TOKEN}" ${vault_address}/v1/cubbyhole/${key_name}|jq --exit-status .data.cached)
+    unset secret
+    secret=$(vault kv get -field=cached cubbyhole/${key_name})
 }
 
 function vault_get_secret(){
     unset secret
     unset secrets
-    result=$(curl ${curl_params} -H "X-Vault-Token: ${VAULT_TOKEN}" ${vault_address}/v1/${keyvault}/data/${key_name})
-    if [ "${mode}" == "ssh-key" ]; then
+
+    result=$(vault kv get -format=json ${keyvault}/${key_name})
+    if [ "${secret_name}x" != "x" ]; then
+        secret=$(echo ${result}|jq -r --arg keyname ${secret_name} '.data.data[$keyname]')
+    elif [ "${mode}" == "ssh-key" ]; then
         if [ "${secret_type}" == "public" ]; then
             secret=$(echo ${result}|jq -r '.data.data.public_key')
         elif [ "${secret_type}" == "private" ]; then
@@ -146,9 +149,8 @@ function vault_get_secret(){
             return 1
         fi
     elif [ "${mode}" == "password" ]; then
-        secret=$(echo ${result}|jq -r '.data.data.password')    
+        secret=$(echo ${result}|jq -r '.data.data.password')
     fi
-    
 }
 
 function vault_search_secret() {
